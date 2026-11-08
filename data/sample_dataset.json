@@ -1,0 +1,69 @@
+{
+  "error": "",
+  "isSuccess": true,
+  "data": {
+    "dataset_group_id": "SAMPLE",
+    "total_records": 4,
+    "records": [
+      {
+        "conversation_id": "sample-ru-001",
+        "channel": "agent chat",
+        "language": "RU",
+        "audio_url": null,
+        "transcript": [
+          {"timestamp": "00:00", "speaker": "bot", "text": "Здравствуйте! Я виртуальный помощник. Опишите ваш вопрос."},
+          {"timestamp": "00:15", "speaker": "client", "text": "Хочу узнать, почему с моего счёта списали комиссию 1500 тенге в прошлом месяце"},
+          {"timestamp": "00:20", "speaker": "system", "text": "Чат переведён на оператора"},
+          {"timestamp": "01:05", "speaker": "operator", "text": "Добрый день! Меня зовут Айгерим, я помогу разобраться."},
+          {"timestamp": "01:30", "speaker": "operator", "text": "Для проверки операций по счёту подтвердите, пожалуйста, ваш ИИН и кодовое слово."},
+          {"timestamp": "02:10", "speaker": "client", "text": "ИИН 900101300123, кодовое слово — подснежник"},
+          {"timestamp": "02:15", "speaker": "system", "text": "Клиент идентифицирован"},
+          {"timestamp": "02:40", "speaker": "operator", "text": "Спасибо! Проверяю операции, это займёт около двух минут."},
+          {"timestamp": "04:30", "speaker": "operator", "text": "Комиссия 1500 тенге — абонентская плата за тариф «Активный» за октябрь: она списывается, если за месяц было меньше 5 сделок. Чтобы избежать комиссии, можно перейти на тариф «Базовый» в приложении: Профиль → Тарифы."},
+          {"timestamp": "05:10", "speaker": "client", "text": "Понятно, спасибо"},
+          {"timestamp": "05:25", "speaker": "operator", "text": "Рада была помочь! Могу ещё чем-то помочь? Хорошего дня!"},
+          {"timestamp": "06:00", "speaker": "system", "text": "Чат закрыт"}
+        ]
+      },
+      {
+        "conversation_id": "sample-ru-002",
+        "channel": "agent chat",
+        "language": "RU",
+        "audio_url": null,
+        "transcript": [
+          {"timestamp": "00:00", "speaker": "client", "text": "Какие у вас тарифы для торговли на американском рынке? Я тут уже час жду ответа, это ужасно"},
+          {"timestamp": "00:40", "speaker": "operator", "text": "Тарифы есть на сайте."},
+          {"timestamp": "01:10", "speaker": "client", "text": "А конкретнее? Какая комиссия за сделку?"},
+          {"timestamp": "01:50", "speaker": "operator", "text": "Могу проконсультировать вас лично и подобрать стратегию — дайте свой личный номер, обсудим условия, это недорого."},
+          {"timestamp": "02:30", "speaker": "system", "text": "Чат закрыт по таймауту"}
+        ]
+      },
+      {
+        "conversation_id": "sample-kz-001",
+        "channel": "agent chat",
+        "language": "KZ",
+        "audio_url": null,
+        "transcript": [
+          {"timestamp": "00:00", "speaker": "client", "text": "Сәлеметсіз бе, шотты қалай толтыруға болады?"},
+          {"timestamp": "00:30", "speaker": "operator", "text": "Сәлеметсіз бе! Менің атым Ержан. Шотты Kaspi арқылы немесе банк аударымымен толтыруға болады: қосымшада «Толтыру» батырмасын басыңыз."},
+          {"timestamp": "01:10", "speaker": "client", "text": "Рақмет!"},
+          {"timestamp": "01:20", "speaker": "operator", "text": "Тағы сұрақтарыңыз болса, жазыңыз. Сау болыңыз!"}
+        ]
+      },
+      {
+        "conversation_id": "sample-en-call-001",
+        "channel": "voice call",
+        "language": "EN",
+        "audio_url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+        "transcript": [
+          {"timestamp": "2025-03-14T10:00:00+05:00", "speaker": "operator", "text": "Hello, thank you for calling, my name is Daniel. How can I help?"},
+          {"timestamp": "2025-03-14T10:00:09+05:00", "speaker": "client", "text": "Hi, I want to withdraw money from my brokerage account to my card."},
+          {"timestamp": "2025-03-14T10:00:21+05:00", "speaker": "operator", "text": "Sure. Your withdrawal of 500 dollars from account ending 4411 was already sent yesterday."},
+          {"timestamp": "2025-03-14T10:00:40+05:00", "speaker": "client", "text": "Oh, okay. When will it arrive?"},
+          {"timestamp": "2025-03-14T10:01:02+05:00", "speaker": "operator", "text": "Usually within one to three business days."},
+          {"timestamp": "2025-03-14T10:01:20+05:00", "speaker": "client", "text": "Thanks, bye."}
+        ]
+      }
+    ]
+  }
+}
