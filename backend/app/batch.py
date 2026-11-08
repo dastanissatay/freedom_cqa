@@ -1,17 +1,12 @@
-"""Пакетная оценка всего набора с прогрессом + экспорт результатов."""
+"""Пакетная оценка всего набора с прогрессом."""
 from __future__ import annotations
 
 import asyncio
-import csv
-import io
-import json
 import uuid
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
 
 from . import db
-from .appeals import final_result_for
 from .checklists import load_config
 from .config import get_settings
 from .evaluator import EvaluationFailed, evaluate
@@ -93,49 +88,3 @@ def api_cancel(jid: str):
 @router.get("/api/batch")
 def api_jobs():
     return sorted(JOBS.values(), key=lambda j: j["started_at"], reverse=True)
-
-
-def export_rows(group_id: str, checklist_version_id: int | None) -> tuple[list[str], list[dict]]:
-    sql = "SELECT id, conversation_id, checklist_version_id FROM evaluations WHERE group_id=?"
-    params: list = [group_id]
-    if checklist_version_id:
-        sql += " AND checklist_version_id=?"
-        params.append(checklist_version_id)
-    latest: dict[str, dict] = {}
-    for r in db.query(sql + " ORDER BY id", params):
-        latest[r["conversation_id"]] = r
-    crit_ids: list[str] = []
-    rows = []
-    for cid, r in sorted(latest.items()):
-        fr = final_result_for(r["id"])
-        cfg = load_config(r["checklist_version_id"])
-        for c in cfg.criteria:
-            if c.id not in crit_ids:
-                crit_ids.append(c.id)
-        row = {"conversation_id": cid, "evaluation_id": r["id"], "checklist_version_id": r["checklist_version_id"],
-               "total": fr["final"]["total"], "original_total": fr["original"]["total"],
-               "critical_flag": fr["final"]["critical_flag"]}
-        for c in fr["final"]["criteria"]:
-            row[f"c{c['criterion_id']}"] = c["answer"]
-        rows.append(row)
-    cols = ["conversation_id", "evaluation_id", "checklist_version_id", "total", "original_total", "critical_flag"]
-    return cols + [f"c{c}" for c in crit_ids], rows
-
-
-@router.get("/api/export/{group_id}")
-def api_export(group_id: str, checklist_version_id: int | None = None, fmt: str = "csv"):
-    cols, rows = export_rows(group_id, checklist_version_id)
-    if fmt == "json":
-        full = []
-        for r in rows:
-            from .evaluator import get_evaluation
-
-            full.append(get_evaluation(r["evaluation_id"]))
-        return Response(json.dumps(full, ensure_ascii=False, indent=1), media_type="application/json",
-                        headers={"Content-Disposition": f'attachment; filename="cqa_{group_id}.json"'})
-    buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
-    w.writeheader()
-    w.writerows(rows)
-    return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": f'attachment; filename="cqa_{group_id}.csv"'})

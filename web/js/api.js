@@ -45,7 +45,10 @@ export const api = {
   deleteReference: (gid, cid, vid) => request("DELETE", `/api/references/${enc(gid)}/${enc(cid)}?checklist_version_id=${vid}`),
   importReferences: (body) => request("POST", "/api/references/import", body),
   quality: (gid, vid) => request("GET", `/api/quality?group_id=${enc(gid)}&checklist_version_id=${vid}`),
-  exportUrl: (gid, vid, fmt = "csv") => base() + `/api/export/${enc(gid)}?fmt=${fmt}${vid ? `&checklist_version_id=${vid}` : ""}`,
+  summary: (gid, vid) => request("GET", `/api/summary?group_id=${enc(gid)}&checklist_version_id=${vid}`),
+  stability: (eid, runs = 1) => request("POST", `/api/evaluations/${eid}/stability?runs=${runs}`),
+  // fmt=results — results.json в формате организаторов; fmt=csv — таблица
+  exportUrl: (gid, vid, fmt = "results") => base() + `/api/export/${enc(gid)}?fmt=${fmt}${vid ? `&checklist_version_id=${vid}` : ""}`,
   // запись звонка всегда через бэкенд: audio_url ведёт на HTML-страницу с плеером, а не на файл
   audioUrl: (gid, cid) => base() + `/api/audio/${enc(gid)}/${enc(cid)}`,
 };

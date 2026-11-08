@@ -37,9 +37,10 @@ export function mount(root, ctx) {
         h("div", { class: "row" }, loadBtn, startBtn,
           h("label", { class: "check" }, onlyMissing, " только неоценённые этой версией")),
         h("div", { class: "row" },
-          h("span", { class: "muted" }, "3. Экспорт результатов: "),
-          h("a", { class: "btn small ghost", href: api.exportUrl(state.groupId, state.versionId, "csv") }, "CSV"),
-          h("a", { class: "btn small ghost", href: api.exportUrl(state.groupId, state.versionId, "json") }, "JSON (с обоснованиями)"))),
+          h("span", { class: "muted" }, "3. Выгрузка: "),
+          h("a", { class: "btn small primary", href: api.exportUrl(state.groupId, state.versionId, "results"), download: "results.json",
+            title: "Формат организаторов (JSON 1.0): коды критериев из чек-листа, реплики с 1" }, "⬇ results.json"),
+          h("a", { class: "btn small ghost", href: api.exportUrl(state.groupId, state.versionId, "csv") }, "CSV"))),
       progress);
     renderProgress();
   }

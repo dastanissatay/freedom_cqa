@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from . import pii
 from .schemas import ChecklistConfig, Criterion
 
 TYPE_LABEL = {
@@ -23,6 +24,7 @@ SYSTEM_TEMPLATE = """Ты — эксперт службы контроля ка�
 - Для N/A ("na") объясни, какое именно условие неприменимости выполнено. N/A можно ставить только критериям, где он разрешён.
 - explanation — 1–3 предложения на РУССКОМ языке (даже если диалог на казахском или английском): вердикт, что сделал/не сделал оператор, и на какие реплики опираешься (например: «Основание — [5] и системное сообщение [9]»).
 - answer — строка: для Да/Нет — "yes" или "no"; для N/A — "na"; для шкальных критериев — одно из чисел-ступеней шкалы строкой (например "15").
+- Персональные данные в транскрипте могут быть заменены метками [ИИН], [КАРТА], [IBAN], [ТЕЛЕФОН], [EMAIL], [НОМЕР]. Метка означает, что в реплике были такие данные: учитывай сам факт их запроса или раскрытия, маскирование — не ошибка оператора.
 - Баллы и итог НЕ считай — это сделает система.
 
 # Пояснения к чек-листу
@@ -69,20 +71,23 @@ def build_system(cfg: ChecklistConfig) -> str:
     )
 
 
-def render_transcript(transcript: list[dict]) -> str:
+def render_transcript(transcript: list[dict], mask_pii: bool = False) -> str:
+    def text(m: dict) -> str:
+        return pii.mask(m["text"]) if mask_pii else m["text"]
+
     return "\n".join(
-        f"[{m['index']}] {m['speaker']} {m.get('timestamp') or ''}: {m['text']}".replace("\n", " ")
+        f"[{m['index']}] {m['speaker']} {m.get('timestamp') or ''}: {text(m)}".replace("\n", " ")
         for m in transcript
     )
 
 
-def build_user(conversation: dict, retry_errors: list[str] | None = None) -> str:
+def build_user(conversation: dict, retry_errors: list[str] | None = None, mask_pii: bool = False) -> str:
     parts = [
         f"Диалог {conversation['conversation_id']} · канал: {conversation.get('channel') or '?'} · язык: {conversation.get('language') or '?'}",
         f"Всего реплик: {len(conversation['transcript'])} (номера 0–{len(conversation['transcript']) - 1}).",
         "",
         "<transcript>",
-        render_transcript(conversation["transcript"]),
+        render_transcript(conversation["transcript"], mask_pii),
         "</transcript>",
         "",
         "Оцени оператора по каждому критерию чек-листа и верни JSON.",

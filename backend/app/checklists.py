@@ -97,8 +97,3 @@ def api_get_version(version_id: int):
 def api_add_version(checklist_id: int, body: SaveBody):
     """Сохранить изменения как новую версию существующего чек-листа."""
     return add_version(checklist_id, body.config, body.comment)
-
-
-@router.post("/validate")
-def api_validate(body: SaveBody):
-    return {"ok": True, "total_weight": body.config.total_weight}

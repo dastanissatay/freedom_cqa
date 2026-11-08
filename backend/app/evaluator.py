@@ -23,28 +23,23 @@ class EvaluationFailed(Exception):
     pass
 
 
-def evaluate(group_id: str, conversation_id: str, checklist_version_id: int) -> dict:
-    conv = get_conversation(group_id, conversation_id)
-    cfg = load_config(checklist_version_id)
+def run_llm(conv: dict, cfg) -> dict:
+    """Один прогон оценки: промпт → LLM → валидация (с повтором при ошибке). Ничего не сохраняет."""
     adapter = get_adapter()
     settings = get_settings()
-
     system = build_system(cfg)
     schema = build_schema(cfg)
     n = len(conv["transcript"])
     if n == 0:
         raise EvaluationFailed("Пустой транскрипт")
 
-    usage_total: dict[str, int] = {}
+    usage: dict[str, int] = {}
     errors: list[str] = []
     warnings: list[str] = []
-    verdicts = None
     model = adapter.model
-    attempts = 0
     started = time.time()
     for attempt in range(settings.llm_max_retries + 1):
-        attempts = attempt + 1
-        user = build_user(conv, errors or None)
+        user = build_user(conv, errors or None, mask_pii=settings.pii_masking)
         try:
             resp = adapter.complete(system, user, schema, context={"checklist": cfg, "transcript": conv["transcript"]})
         except LLMError as e:
@@ -55,30 +50,65 @@ def evaluate(group_id: str, conversation_id: str, checklist_version_id: int) -> 
             continue
         model = resp.model or model
         for k, v in resp.usage.items():
-            usage_total[k] = usage_total.get(k, 0) + int(v or 0)
+            usage[k] = usage.get(k, 0) + int(v or 0)
         parsed, errors, warnings = parse_and_validate(resp.text, cfg, n)
         if not errors:
-            verdicts = parsed
-            break
-    if verdicts is None:
-        raise EvaluationFailed("Модель не вернула корректный ответ: " + "; ".join(errors[:5]))
+            cost = cost_usd(adapter.model if adapter.provider == "mock" else model, usage)
+            if cost is None:
+                cost = cost_usd(adapter.model, usage)
+            usage["latency_sec"] = round(time.time() - started, 2)
+            usage["warnings"] = warnings  # type: ignore[assignment]
+            return {"verdicts": parsed, "usage": usage, "model": model, "provider": adapter.provider,
+                    "attempts": attempt + 1, "cost": cost}
+    raise EvaluationFailed("Модель не вернула корректный ответ: " + "; ".join(errors[:5]))
 
-    answers = {v.criterion_id: v.answer for v in verdicts}
-    result = scoring.compute(cfg, answers)
-    cost = cost_usd(adapter.model if adapter.provider == "mock" else model, usage_total)
-    if cost is None:
-        cost = cost_usd(adapter.model, usage_total)
-    usage_total["latency_sec"] = round(time.time() - started, 2)
-    usage_total["warnings"] = warnings  # type: ignore[assignment]
 
+def evaluate(group_id: str, conversation_id: str, checklist_version_id: int) -> dict:
+    conv = get_conversation(group_id, conversation_id)
+    cfg = load_config(checklist_version_id)
+    run = run_llm(conv, cfg)
+    result = scoring.compute(cfg, {v.criterion_id: v.answer for v in run["verdicts"]})
     eid = db.execute(
         """INSERT INTO evaluations(group_id, conversation_id, checklist_version_id, provider, model,
              verdicts_json, result_json, usage_json, cost_usd, attempts, created_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-        (group_id, conversation_id, checklist_version_id, adapter.provider, model,
-         db.dumps([v.model_dump() for v in verdicts]), db.dumps(result), db.dumps(usage_total), cost, attempts, db.now()),
+        (group_id, conversation_id, checklist_version_id, run["provider"], run["model"],
+         db.dumps([v.model_dump() for v in run["verdicts"]]), db.dumps(result), db.dumps(run["usage"]),
+         run["cost"], run["attempts"], db.now()),
     )
     return get_evaluation(eid)
+
+
+def check_stability(eid: int, runs: int = 1) -> dict:
+    """Повторяет оценку того же диалога тем же чек-листом и сравнивает ответы по критериям.
+
+    Повторы не становятся новой оценкой: результат сохраняется в usage оценки (ключ "stability").
+    Аналог калибровочной сессии: критерии, где ответы расходятся, сформулированы неоднозначно
+    или диалог пограничный — их стоит проверить вручную.
+    """
+    ev = db.query_one("SELECT * FROM evaluations WHERE id=?", (eid,))
+    if not ev:
+        raise HTTPException(404, "Оценка не найдена")
+    cfg = load_config(ev["checklist_version_id"])
+    conv = get_conversation(ev["group_id"], ev["conversation_id"])
+    base = {v["criterion_id"]: v["answer"] for v in json.loads(ev["verdicts_json"])}
+    answers = {cid: [a] for cid, a in base.items()}
+    cost = 0.0
+    for _ in range(max(1, min(runs, 3))):
+        run = run_llm(conv, cfg)
+        cost += run["cost"] or 0
+        for v in run["verdicts"]:
+            answers.setdefault(v.criterion_id, []).append(v.answer)
+    criteria = [{"criterion_id": c.id, "answers": answers.get(c.id, []),
+                 "stable": len({json.dumps(a) for a in answers.get(c.id, [])}) == 1} for c in cfg.criteria]
+    stable = sum(c["stable"] for c in criteria)
+    report = {"runs": len(next(iter(answers.values()))) - 1, "stable": stable, "total": len(criteria),
+              "agreement_pct": round(stable / len(criteria) * 100, 1), "criteria": criteria,
+              "cost_usd": round(cost, 6), "checked_at": db.now()}
+    usage = json.loads(ev["usage_json"] or "{}")
+    usage["stability"] = report
+    db.execute("UPDATE evaluations SET usage_json=? WHERE id=?", (db.dumps(usage), eid))
+    return report
 
 
 def get_evaluation(eid: int) -> dict:
@@ -120,3 +150,12 @@ def api_list(group_id: str, conversation_id: str):
 @router.get("/{eid}")
 def api_get(eid: int):
     return get_evaluation(eid)
+
+
+@router.post("/{eid}/stability")
+def api_stability(eid: int, runs: int = 1):
+    """Проверка стабильности: повторный прогон LLM (1–3 раза) и сравнение ответов по критериям."""
+    try:
+        return check_stability(eid, runs)
+    except EvaluationFailed as e:
+        raise HTTPException(502, str(e)) from e

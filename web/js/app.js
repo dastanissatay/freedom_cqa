@@ -7,6 +7,7 @@ import * as appealsPage from "./components/reviewer-queue.js";
 import * as checklistEditor from "./components/checklist-editor.js";
 import * as batchRunner from "./components/batch-runner.js";
 import * as qualityPage from "./components/quality.js";
+import * as summaryPage from "./components/summary.js";
 
 const main = document.getElementById("cqa-main");
 const controls = document.getElementById("cqa-controls");
@@ -30,7 +31,7 @@ function renderControls() {
     h("label", { class: "ctl" }, h("span", {}, "group_id"), gid),
     h("label", { class: "ctl" }, h("span", {}, "Чек-лист"), sel),
     role,
-    state.config ? h("span", { class: "model-chip", title: "LLM_PROVIDER / LLM_MODEL" }, `${state.config.provider}: ${state.config.model}`) : null,
+    state.config ? h("span", { class: "model-chip", title: "LLM_PROVIDER / LLM_MODEL" }, `${state.config.provider}: ${state.config.model}${state.config.pii_masking ? " · ПДн скрыты" : ""}`) : null,
   );
 }
 
@@ -49,7 +50,7 @@ function route() {
     a.classList.toggle("active", n === r.name || (n === "dialogs" && r.name === "dialog"));
   });
   const ctx = { route: r, navigate: (hash) => (location.hash = hash) };
-  const views = { dialogs: dialogList, dialog: dialogCard, appeals: appealsPage, checklists: checklistEditor, batch: batchRunner, quality: qualityPage };
+  const views = { dialogs: dialogList, dialog: dialogCard, appeals: appealsPage, checklists: checklistEditor, batch: batchRunner, summary: summaryPage, quality: qualityPage };
   const view = views[r.name] || dialogList;
   current = view.mount(main, ctx);
 }

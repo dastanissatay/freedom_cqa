@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     price_input_per_m: Optional[float] = None
     price_output_per_m: Optional[float] = None
 
+    team_name: str = "Qazyna"
+    # маскировать ИИН, карты, счета, телефоны, e-mail перед отправкой транскрипта в LLM
+    pii_masking: bool = True
+
     db_path: str = "data/cqa.db"
     batch_concurrency: int = 4
     cors_origins: str = "*"

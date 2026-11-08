@@ -1,7 +1,8 @@
 // Экран апелляций: оператор видит свои обращения, проверяющий — очередь и форму решения.
 import { api } from "../api.js";
+import { decisionForm } from "./decision-form.js";
 import { state } from "../state.js";
-import { h, add, clear, toast, spinner, answerLabel, allowedAnswers, fmtScore, fmtDate, SPEAKER, fmtTimestamp, scoreClass } from "../util.js";
+import { h, add, clear, toast, spinner, answerLabel, fmtScore, fmtDate, SPEAKER, fmtTimestamp, scoreClass } from "../util.js";
 
 export function mount(root, ctx) {
   let status = state.role === "reviewer" ? "open" : "";
@@ -98,36 +99,8 @@ export function mount(root, ctx) {
             h("b", {}, appeal.decision === "change" ? `Изменено: ${answerLabel(appeal.original_answer, crit)} → ${answerLabel(appeal.new_answer, crit)}` : "Оценка подтверждена"),
             h("div", {}, h("span", { class: "muted" }, "Причина: "), appeal.reviewer_reason),
             h("div", { class: "muted small" }, fmtDate(appeal.resolved_at)))
-        : state.role === "reviewer" ? decisionForm(appeal, crit) : h("div", { class: "muted" }, "Ожидает решения проверяющего."),
+        : state.role === "reviewer" ? decisionForm(appeal, crit, { big: true, onDecided: () => { status = ""; renderShell(); loadList(); } }) : h("div", { class: "muted" }, "Ожидает решения проверяющего."),
       totals);
-  }
-
-  function decisionForm(appeal, crit) {
-    const current = appeal.original_answer;
-    const options = allowedAnswers(crit).filter((x) => x !== current);
-    let decision = "confirm";
-    const sel = h("select", { class: "inp", disabled: true }, options.map((x) => h("option", { value: JSON.stringify(x) }, answerLabel(x, crit))));
-    const reason = h("textarea", { class: "inp", rows: 3, placeholder: "Причина решения (обязательно)" });
-    const radio = (val, text) => {
-      const r = h("input", { type: "radio", name: "decision", value: val, checked: val === "confirm" });
-      r.addEventListener("change", () => { decision = val; sel.disabled = val !== "change"; });
-      return h("label", { class: "radio" }, r, text);
-    };
-    return h("div", { class: "decision-form big" },
-      h("h3", {}, "Решение проверяющего"),
-      h("div", { class: "row" }, radio("confirm", `Подтвердить оценку (${answerLabel(current, crit)})`)),
-      h("div", { class: "row" }, radio("change", "Изменить оценку на:"), sel),
-      reason,
-      h("button", { class: "btn primary", onclick: async () => {
-        if (!reason.value.trim()) return toast("Укажите причину решения", "error");
-        try {
-          const res = await api.decide(appeal.id, decision, decision === "change" ? JSON.parse(sel.value) : null, reason.value.trim());
-          toast(`Итог пересчитан: ${fmtScore(res.original.total)} → ${fmtScore(res.final.total)}`);
-          status = ""; // показываем и рассмотренную апелляцию с новым итогом
-          renderShell();
-          loadList();
-        } catch (e) { toast(e.message, "error"); }
-      } }, "Сохранить решение и пересчитать итог"));
   }
 
   renderShell();

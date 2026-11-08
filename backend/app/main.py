@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import appeals, batch, checklists, dataset, db, evaluator, references
+from . import analytics, appeals, batch, checklists, dataset, db, evaluator, export, references
 from .config import ROOT, get_settings
 from .llm.pricing import price_for
 
@@ -30,7 +30,7 @@ origins = [o.strip() for o in get_settings().cors_origins.split(",") if o.strip(
 app.add_middleware(CORSMiddleware, allow_origins=origins or ["*"], allow_methods=["*"], allow_headers=["*"])
 
 for r in (dataset.router, checklists.router, evaluator.router, appeals.router, batch.router,
-          references.router, references.quality_router):
+          references.router, references.quality_router, export.router, analytics.router):
     app.include_router(r)
 
 
@@ -44,6 +44,8 @@ def api_config():
         "price_per_m": price_for("mock" if s.llm_provider == "mock" else s.llm_model),
         "default_group_id": s.default_group_id,
         "dataset_api_configured": bool(s.dataset_api_url),
+        "pii_masking": s.pii_masking,
+        "team_name": s.team_name,
     }
 
 

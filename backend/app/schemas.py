@@ -30,6 +30,8 @@ class Criterion(BaseModel):
     na_condition: str = ""
     scale: list[ScaleLevel] = Field(default_factory=list)
     guidance: str = ""
+    # код критерия в выгрузке results.json (формат организаторов), напр. "contact"; пусто — используется id
+    export_code: str = ""
 
     @model_validator(mode="after")
     def _check(self) -> "Criterion":
@@ -119,10 +121,6 @@ class Verdict(BaseModel):
 
 
 # ---------- запросы API ----------
-
-class ChecklistCreate(BaseModel):
-    config: ChecklistConfig
-
 
 class EvaluateRequest(BaseModel):
     group_id: str

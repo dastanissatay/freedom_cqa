@@ -242,3 +242,14 @@ textarea.inp { width: 100%; resize: vertical; }
 .dis:hover { background: #f6faf8; }
 .chips-wrap { display: flex; flex-wrap: wrap; gap: 4px; }
 .chips-wrap .chip { text-decoration: none; }
+
+/* ---- аналитика и стабильность ---- */
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-2col .card { margin-bottom: 0; }
+.grid-2col + .card, .card + .grid-2col { margin-top: 12px; }
+.hist { display: flex; flex-direction: column; gap: 6px; }
+.hist-row { display: grid; grid-template-columns: 60px 1fr 30px; gap: 8px; align-items: center; }
+.hist-row .bar { margin: 0; }
+.hist-l { font-size: 12px; color: var(--muted); }
+.stability { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+@media (max-width: 1000px) { .grid-2col { grid-template-columns: 1fr; } }

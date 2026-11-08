@@ -34,6 +34,10 @@ export function mount(root, ctx) {
     if (!versionId) { clear(editor).append(h("div", { class: "empty" }, "Нет чек-листов")); return; }
     loaded = await api.version(versionId);
     draft = structuredClone(loaded.config);
+    // версии, сохранённые до появления export_code: показываем коды, которые подставит выгрузка
+    const LEGACY = { "01": "contact", "02": "discovery", "03": "identification", "04": "consultation",
+                     "05": "empathy", "06": "dialogue", "07": "closure", "08": "critical" };
+    for (const c of draft.criteria) if (!c.export_code && LEGACY[c.id]) c.export_code = LEGACY[c.id];
     render();
   }
 
@@ -94,7 +98,7 @@ export function mount(root, ctx) {
       h("summary", {},
         h("span", { class: "crit-id" }, c.id),
         h("span", { class: "crit-title" }, c.title || "(без названия)"),
-        h("span", { class: "muted small" }, `${TYPES.find((t) => t[0] === c.type)[1]}${c.type !== "flag" ? ` · вес ${c.weight}` : ""}${c.na_allowed ? " · N/A" : ""}`)),
+        h("span", { class: "muted small" }, `${TYPES.find((t) => t[0] === c.type)[1]}${c.type !== "flag" ? ` · вес ${c.weight}` : ""}${c.na_allowed ? " · N/A" : ""}${c.export_code ? ` · ${c.export_code}` : ""}`)),
       h("div", { class: "grid2" },
         h("label", {}, "ID", field(c, "id", { onInput: () => {} })),
         h("label", {}, "Секция", secSel),
@@ -105,7 +109,9 @@ export function mount(root, ctx) {
         h("label", { class: "check span2" }, na, " N/A допустим"),
         c.na_allowed ? h("label", { class: "span2" }, "Условие N/A", field(c, "na_condition", { placeholder: "Когда критерий неприменим" })) : null,
         c.type === "scale" ? h("div", { class: "span2" }, scaleEditor(c)) : null,
-        h("label", { class: "span2" }, "Подсказка для LLM (опционально)", field(c, "guidance", { rows: 2 }))),
+        h("label", { class: "span2" }, "Подсказка для LLM (опционально)", field(c, "guidance", { rows: 2 })),
+        h("label", {}, "Код для выгрузки results.json", field(c, "export_code", { placeholder: "напр. contact; пусто — ID" })),
+        h("div", { class: "small muted", style: { alignSelf: "end" } }, "Код критерия в формате организаторов. Для нового критерия укажите код из их инструкции.")),
       h("div", { class: "row end" },
         h("button", { class: "btn small danger", onclick: () => {
           if (!confirm(`Удалить критерий ${c.id}?`)) return;
@@ -138,7 +144,7 @@ export function mount(root, ctx) {
           h("span", { class: "muted small" }, `id: ${s.id}`),
           h("button", { class: "btn small", onclick: () => {
             const id = nextCritId();
-            draft.criteria.push({ id, section_id: s.id, title: "Новый критерий", description: "", type: "binary", weight: 10, na_allowed: false, na_condition: "", scale: [], guidance: "", _open: true });
+            draft.criteria.push({ id, section_id: s.id, title: "Новый критерий", description: "", type: "binary", weight: 10, na_allowed: false, na_condition: "", scale: [], guidance: "", export_code: "", _open: true });
             render();
           } }, "+ критерий"),
           h("button", { class: "btn small ghost", title: "Удалить секцию", disabled: crits.length > 0, onclick: () => { draft.sections = draft.sections.filter((x) => x !== s); render(); } }, "✕")),

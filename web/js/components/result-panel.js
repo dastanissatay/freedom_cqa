@@ -1,6 +1,7 @@
 // Результат оценки: итог, секции, критерии с обоснованием и ссылками, апелляции и решения.
 import { api } from "../api.js";
-import { h, add, clear, toast, answerLabel, answerClass, allowedAnswers, fmtScore, scoreClass, fmtMoney, fmtDate, SPEAKER, fmtTimestamp } from "../util.js";
+import { decisionForm } from "./decision-form.js";
+import { h, add, clear, toast, answerLabel, answerClass, fmtScore, scoreClass, fmtMoney, fmtDate, SPEAKER, fmtTimestamp } from "../util.js";
 
 export function mount(root, { evaluation, conversation, role, onRef, onChanged, reference }) {
   // эталон показываем, только если он размечен по той же версии чек-листа
@@ -11,6 +12,27 @@ export function mount(root, { evaluation, conversation, role, onRef, onChanged, 
   const finalRows = Object.fromEntries(ev.final.criteria.map((c) => [c.criterion_id, c]));
   const origRows = Object.fromEntries(ev.original.criteria.map((c) => [c.criterion_id, c]));
   const box = h("div", { class: "result" });
+  const stab = ev.usage?.stability || null;
+  const stabRows = Object.fromEntries((stab?.criteria || []).map((c) => [c.criterion_id, c]));
+
+  // проверка стабильности: повторный прогон LLM и сравнение ответов (аналог калибровочной сессии)
+  function stabilityBlock() {
+    const btn = h("button", { class: "btn small ghost", title: "Повторить оценку LLM и сравнить ответы по критериям (платный вызов модели)" },
+      stab ? "↻ Перепроверить стабильность" : "⚖ Проверить стабильность");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Повторный прогон LLM…";
+      try {
+        const r = await api.stability(ev.id, 1);
+        toast(`Стабильность: ${r.stable} из ${r.total} критериев совпали`);
+        onChanged?.();
+      } catch (e) { toast(e.message, "error"); btn.disabled = false; }
+    });
+    return h("div", { class: "stability" },
+      stab ? h("span", { class: `chip ${stab.stable === stab.total ? "good" : "warn"}` },
+        `Стабильность: ${stab.stable}/${stab.total} (${stab.runs} повт.)`) : null,
+      btn);
+  }
   root.append(box);
 
   const msgLabel = (i) => {
@@ -41,7 +63,7 @@ export function mount(root, { evaluation, conversation, role, onRef, onChanged, 
       btn.addEventListener("click", () => { btn.replaceWith(appealForm(crit)); });
       el.append(btn);
     }
-    if (role === "reviewer" && open) el.append(decisionForm(open, crit));
+    if (role === "reviewer" && open) el.append(decisionForm(open, crit, { onDecided: () => onChanged?.() }));
     return el;
   }
 
@@ -79,31 +101,6 @@ export function mount(root, { evaluation, conversation, role, onRef, onChanged, 
     return form;
   }
 
-  function decisionForm(appeal, crit) {
-    let decision = "confirm";
-    const current = appeal.original_answer;
-    const options = allowedAnswers(crit).filter((a) => a !== current);
-    const sel = h("select", { class: "inp", disabled: true }, options.map((a) => h("option", { value: JSON.stringify(a) }, answerLabel(a, crit))));
-    const reason = h("textarea", { class: "inp", rows: 2, placeholder: "Причина решения (обязательно)" });
-    const radio = (val, text) => {
-      const r = h("input", { type: "radio", name: `dec-${appeal.id}`, value: val, checked: val === "confirm" });
-      r.addEventListener("change", () => { decision = val; sel.disabled = val !== "change"; });
-      return h("label", { class: "radio" }, r, text);
-    };
-    return h("div", { class: "decision-form" },
-      h("div", { class: "small" }, h("b", {}, "Решение проверяющего")),
-      h("div", { class: "row" }, radio("confirm", `Подтвердить (${answerLabel(current, crit)})`), radio("change", "Изменить на:"), sel),
-      reason,
-      h("button", { class: "btn small", onclick: async () => {
-        if (!reason.value.trim()) return toast("Укажите причину решения", "error");
-        try {
-          const res = await api.decide(appeal.id, decision, decision === "change" ? JSON.parse(sel.value) : null, reason.value.trim());
-          toast(`Решение сохранено. Итог: ${fmtScore(res.original.total)} → ${fmtScore(res.final.total)}`);
-          onChanged?.();
-        } catch (e) { toast(e.message, "error"); }
-      } }, "Сохранить решение"));
-  }
-
   function criterionCard(crit) {
     const v = verdicts[crit.id] || {};
     const fin = finalRows[crit.id];
@@ -121,6 +118,10 @@ export function mount(root, { evaluation, conversation, role, onRef, onChanged, 
             : isNa ? `N/A · вес ${crit.weight} перераспределён`
             : `${fmtScore(fin.points)} / ${crit.weight}`)),
       changed ? h("div", { class: "override" }, `Оценка LLM: ${answerLabel(orig.answer, crit)} → после апелляции: ${answerLabel(fin.answer, crit)}`) : null,
+      stab && stabRows[crit.id] && !stabRows[crit.id].stable
+        ? h("div", { class: "ref-mark miss", title: "Повторные прогоны LLM дали разные ответы — критерий стоит проверить вручную" },
+            `⚠ нестабильно: ${stabRows[crit.id].answers.map((a) => answerLabel(a, crit)).join(" / ")}`)
+        : null,
       ref && crit.id in ref.answers
         ? h("div", { class: `ref-mark ${JSON.stringify(ref.answers[crit.id]) === JSON.stringify(orig.answer) ? "match" : "miss"}` },
             JSON.stringify(ref.answers[crit.id]) === JSON.stringify(orig.answer)
@@ -151,7 +152,8 @@ export function mount(root, { evaluation, conversation, role, onRef, onChanged, 
           ` · разница итога: ${O.total !== null && ref.total !== null ? (O.total - ref.total > 0 ? "+" : "") + fmtScore(O.total - ref.total) : "—"}`) : null,
         h("div", {}, `Набрано ${fmtScore(F.earned)} из ${fmtScore(F.applicable_weight)} применимого веса`),
         h("div", { class: "muted small" }, `${ev.checklist.name} · v${ev.checklist.version} · ${ev.provider}/${ev.model} · ${fmtMoney(ev.cost_usd)} · попыток: ${ev.attempts} · ${fmtDate(ev.created_at)}`),
-        ev.usage?.warnings?.length ? h("div", { class: "muted small" }, `Предупреждения валидации: ${ev.usage.warnings.join("; ")}`) : null)),
+        ev.usage?.warnings?.length ? h("div", { class: "muted small" }, `Предупреждения валидации: ${ev.usage.warnings.join("; ")}`) : null,
+        stabilityBlock())),
     F.critical_flag
       ? h("div", { class: "critical" }, h("b", {}, "⚠ Грубая ошибка"),
           flags.map((c) => h("div", {}, `${c.id} ${c.title}: ${verdicts[c.id]?.explanation || ""}`, refChips(verdicts[c.id] || {}))))
